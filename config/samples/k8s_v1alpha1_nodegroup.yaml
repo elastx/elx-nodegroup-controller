@@ -1,0 +1,6 @@
+apiVersion: k8s.elx.cloud/v1alpha1
+kind: NodeGroup
+metadata:
+  name: nodegroup-sample
+spec:
+  # TODO(user): Add fields here
