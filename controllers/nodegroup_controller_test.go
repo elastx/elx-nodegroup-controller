@@ -197,6 +197,44 @@ var _ = Describe("NodeGroup controller", func() {
 				return true
 			})
 		})
+		It("should maintain labels and taints on nodes", func() {
+			node := &corev1.Node{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "node2"}, node)).To(Succeed())
+			Eventually(func() bool {
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node2"}, node)
+				if err != nil {
+					return false
+				}
+				if _, ok := node.GetLabels()["nodegroup2"]; !ok {
+					return false
+				}
+				for _, t := range node.Spec.Taints {
+					if t.MatchTaint(taint) {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "node2"}, node)).To(Succeed())
+			node.Spec.Taints = []corev1.Taint{}
+			Expect(k8sClient.Update(context.Background(), node)).To(Succeed())
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "node2"}, node)).To(Succeed())
+			Eventually(func() bool {
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node2"}, node)
+				if err != nil {
+					return false
+				}
+				if _, ok := node.GetLabels()["nodegroup2"]; !ok {
+					return false
+				}
+				for _, t := range node.Spec.Taints {
+					if t.MatchTaint(taint) {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+		})
 		It("should maintain labels and taints when nodes are recreated", func() {
 			node := &corev1.Node{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "node2"}, node)).To(Succeed())

@@ -25,12 +25,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -127,9 +125,11 @@ func finalizeNodeTaints(node *corev1.Node, taints []corev1.Taint) bool {
 }
 
 func reconcileNodeTaints(node *corev1.Node, taints []corev1.Taint) bool {
+	log := log.FromContext(context.Background())
 	needsUpdate := false
 	for _, t := range taints {
 		if !hasTaint(&t, node) {
+			log.V(1).Info("adding taint", "node", node.Name, "taint", t)
 			node.Spec.Taints = append(node.Spec.Taints, t)
 			needsUpdate = true
 		}
@@ -250,7 +250,6 @@ func (r *NodeGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&k8sv1alpha1.NodeGroup{}).
 		Watches(&source.Kind{Type: &corev1.Node{}},
-			handler.EnqueueRequestsFromMapFunc(r.findNodeGroupsForMember),
-			builder.WithPredicates(predicate.Or(predicate.LabelChangedPredicate{}, predicate.GenerationChangedPredicate{}))).
+			handler.EnqueueRequestsFromMapFunc(r.findNodeGroupsForMember)).
 		Complete(r)
 }
