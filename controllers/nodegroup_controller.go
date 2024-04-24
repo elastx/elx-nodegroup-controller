@@ -174,6 +174,17 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	matchingStrings := nodeGroup.Spec.Members
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		log.Error(err, "unable to list Nodes")
+		return ctrl.Result{}, err
+	}
+
+	for _, node := range nodes.Items {
+		if stringIn(node.Name, nodeGroup.Spec.NodeGroupNames) {
+			matchingStrings = append(matchingStrings, node.Name)
+		}
+	}
 
 	node := &corev1.Node{}
 

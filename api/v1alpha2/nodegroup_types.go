@@ -23,9 +23,9 @@ import (
 
 type NodeGroupSpec struct {
 	//+optional
-	Members []string `json:"members,omitempty"`
+	Members []string `json:"members"`
 	//+optional
-	NodeGroupNames []string `json:"nodeGroupNames,omitempty"`
+	NodeGroupNames []string `json:"nodeGroupNames"`
 	//+optional
 	Labels map[string]string `json:"labels,omitEmpty"`
 	//+optional
