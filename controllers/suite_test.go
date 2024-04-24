@@ -20,9 +20,8 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	//+kubebuilder:scaffold:imports
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,8 +30,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	k8sv1alpha1 "github.com/elastx/elx-nodegroup-controller/api/v1alpha1"
-	//+kubebuilder:scaffold:imports
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	k8sv1alpha1 "github.com/elastx/elx-nodegroup-controller/api/v1alpha2"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to

@@ -1,15 +1,15 @@
 domain: elx.cloud
 layout:
-- go.kubebuilder.io/v3
+  - go.kubebuilder.io/v3
 projectName: elx-nodegroup-controller
 repo: github.com/elastx/elx-nodegroup-controller
 resources:
-- api:
-    crdVersion: v1
-  controller: true
-  domain: elx.cloud
-  group: k8s
-  kind: NodeGroup
-  path: github.com/elastx/elx-nodegroup-controller/api/v1alpha1
-  version: v1alpha1
+  - api:
+      crdVersion: v1
+    controller: true
+    domain: elx.cloud
+    group: k8s
+    kind: NodeGroup
+    path: github.com/elastx/elx-nodegroup-controller/api/v1alpha2
+    version: v1alpha2
 version: "3"

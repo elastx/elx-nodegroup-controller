@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	k8sv1alpha1 "github.com/elastx/elx-nodegroup-controller/api/v1alpha1"
+	k8sv1alpha1 "github.com/elastx/elx-nodegroup-controller/api/v1alpha2"
 )
 
 const (
