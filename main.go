@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	k8sv1alpha1 "github.com/elastx/elx-nodegroup-controller/api/v1alpha2"
+	k8sv1alpha2 "github.com/elastx/elx-nodegroup-controller/api/v1alpha2"
 	"github.com/elastx/elx-nodegroup-controller/controllers"
 )
 
@@ -42,7 +42,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(k8sv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(k8sv1alpha2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

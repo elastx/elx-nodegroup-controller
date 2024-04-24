@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	k8sv1alpha1 "github.com/elastx/elx-nodegroup-controller/api/v1alpha2"
+	k8sv1alpha2 "github.com/elastx/elx-nodegroup-controller/api/v1alpha2"
 )
 
 const (
@@ -139,7 +139,7 @@ func reconcileNodeTaints(node *corev1.Node, taints []corev1.Taint) bool {
 
 func (r *NodeGroupReconciler) findNodeGroupsForMember(_ context.Context, node client.Object) []reconcile.Request {
 	log := log.FromContext(context.Background())
-	nodeGroups := &k8sv1alpha1.NodeGroupList{}
+	nodeGroups := &k8sv1alpha2.NodeGroupList{}
 	listOpts := &client.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector(membersField, node.GetName()),
 	}
@@ -164,7 +164,7 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	log := log.FromContext(ctx)
 
 	log.V(1).Info("reconciling node group", "nodeGroup", req.NamespacedName)
-	var nodeGroup k8sv1alpha1.NodeGroup
+	var nodeGroup k8sv1alpha2.NodeGroup
 	if err := r.Get(ctx, req.NamespacedName, &nodeGroup); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -255,8 +255,8 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func (r *NodeGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &k8sv1alpha1.NodeGroup{}, membersField, func(rawObj client.Object) []string {
-		nodeGroup := rawObj.(*k8sv1alpha1.NodeGroup)
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &k8sv1alpha2.NodeGroup{}, membersField, func(rawObj client.Object) []string {
+		nodeGroup := rawObj.(*k8sv1alpha2.NodeGroup)
 		if nodeGroup.Spec.Members == nil {
 			return nil
 		}
@@ -265,7 +265,7 @@ func (r *NodeGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&k8sv1alpha1.NodeGroup{}).
+		For(&k8sv1alpha2.NodeGroup{}).
 		Watches(&corev1.Node{},
 			handler.EnqueueRequestsFromMapFunc(r.findNodeGroupsForMember)).
 		Complete(r)
