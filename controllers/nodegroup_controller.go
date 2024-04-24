@@ -30,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	k8sv1alpha1 "github.com/elastx/elx-nodegroup-controller/api/v1alpha1"
 )
@@ -137,7 +136,7 @@ func reconcileNodeTaints(node *corev1.Node, taints []corev1.Taint) bool {
 	return needsUpdate
 }
 
-func (r *NodeGroupReconciler) findNodeGroupsForMember(node client.Object) []reconcile.Request {
+func (r *NodeGroupReconciler) findNodeGroupsForMember(_ context.Context, node client.Object) []reconcile.Request {
 	log := log.FromContext(context.Background())
 	nodeGroups := &k8sv1alpha1.NodeGroupList{}
 	listOpts := &client.ListOptions{
@@ -174,6 +173,8 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	matchingStrings := nodeGroup.Spec.Members
+
 	node := &corev1.Node{}
 
 	if nodeGroup.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -187,7 +188,7 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	} else {
 		if stringIn(finalizer, nodeGroup.GetFinalizers()) {
-			for _, n := range nodeGroup.Spec.Members {
+			for _, n := range matchingStrings {
 				err := r.Get(ctx, types.NamespacedName{Name: n}, node)
 				if err != nil {
 					return ctrl.Result{}, err
@@ -214,7 +215,7 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	for _, n := range nodeGroup.Spec.Members {
+	for _, n := range matchingStrings {
 		err := r.Get(ctx, types.NamespacedName{Name: n}, node)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -249,7 +250,7 @@ func (r *NodeGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&k8sv1alpha1.NodeGroup{}).
-		Watches(&source.Kind{Type: &corev1.Node{}},
+		Watches(&corev1.Node{},
 			handler.EnqueueRequestsFromMapFunc(r.findNodeGroupsForMember)).
 		Complete(r)
 }
