@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -181,8 +182,19 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	for _, node := range nodes.Items {
-		if stringIn(node.Name, nodeGroup.Spec.NodeGroupNames) {
-			matchingStrings = append(matchingStrings, node.Name)
+		nodeNameParts := strings.Split(node.Name, "-")
+		{
+			found := false
+			for _, part := range nodeNameParts {
+				if stringIn(part, nodeGroup.Spec.NodeGroupNames) {
+					matchingStrings = append(matchingStrings, node.Name)
+					found = true
+					break
+				}
+			}
+			if found {
+				break
+			}
 		}
 	}
 
