@@ -15,4 +15,4 @@ configMapGenerator:
 images:
   - name: controller
     newName: quay.io/elastx/elx-nodegroup-controller
-    newTag: v0.3
+    newTag: v0.4
