@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha2
+package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
@@ -22,10 +22,7 @@ import (
 )
 
 type NodeGroupSpec struct {
-	//+optional
-	Members []string `json:"members"`
-	//+optional
-	NodeGroupNames []string `json:"nodeGroupNames"`
+	Members []string `json:"members,omitempty"`
 	//+optional
 	Labels map[string]string `json:"labels,omitEmpty"`
 	//+optional
@@ -36,7 +33,6 @@ type NodeGroupStatus struct {
 }
 
 //+kubebuilder:object:root=true
-//+kubebuilder:storageversion
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
 
