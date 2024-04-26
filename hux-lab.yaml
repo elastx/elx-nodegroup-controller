@@ -1,9 +1,0 @@
-apiVersion: k8s.elx.cloud/v1alpha2
-kind: NodeGroup
-metadata:
-  name: hux-test
-spec:
-  nodeGroupNames: 
-    - worker0 # Kubernetes nodegroup name, used for clusters with dynamic node naming
-  labels:
-    hux-test: "true"
