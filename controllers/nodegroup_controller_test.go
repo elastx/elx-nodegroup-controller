@@ -4,12 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/elastx/elx-nodegroup-controller/api/v1alpha1"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/elastx/elx-nodegroup-controller/api/v1alpha2"
 )
 
 var _ = Describe("NodeGroup controller", func() {
@@ -48,12 +50,12 @@ var _ = Describe("NodeGroup controller", func() {
 			Value:  "tainted",
 			Effect: "NoSchedule",
 		}
-		nodeGroups = []v1alpha1.NodeGroup{
+		nodeGroups = []v1alpha2.NodeGroup{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "nodegroup1",
 				},
-				Spec: v1alpha1.NodeGroupSpec{
+				Spec: v1alpha2.NodeGroupSpec{
 					Members: []string{"node1"},
 					Labels: map[string]string{
 						"nodegroup1": "value1",
@@ -64,7 +66,7 @@ var _ = Describe("NodeGroup controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "nodegroup2",
 				},
-				Spec: v1alpha1.NodeGroupSpec{
+				Spec: v1alpha2.NodeGroupSpec{
 					Members: []string{"node2"},
 					Labels: map[string]string{
 						"nodegroup2": "value2",
@@ -89,7 +91,7 @@ var _ = Describe("NodeGroup controller", func() {
 		}
 		for _, nodeGroup := range nodeGroups {
 			Expect(k8sClient.Create(context.Background(), &nodeGroup)).Should(Succeed())
-			ng := &v1alpha1.NodeGroup{}
+			ng := &v1alpha2.NodeGroup{}
 			Eventually(func() bool {
 				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: nodeGroup.Name}, ng)
 				if err != nil {
@@ -111,7 +113,7 @@ var _ = Describe("NodeGroup controller", func() {
 
 	Context("NodeGroups", func() {
 		It("should add a finalizer to NodeGroups", func() {
-			ng := &v1alpha1.NodeGroup{}
+			ng := &v1alpha2.NodeGroup{}
 			for _, nodeGroup := range nodeGroups {
 				Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: nodeGroup.Name}, ng)).Should(Succeed())
 				Expect(ng.Finalizers).Should(HaveLen(1))
@@ -178,7 +180,7 @@ var _ = Describe("NodeGroup controller", func() {
 				}
 				return n.GetLabels()["nodegroup2"] == "value2"
 			})
-			ng := &v1alpha1.NodeGroup{}
+			ng := &v1alpha2.NodeGroup{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "nodegroup2"}, ng)).To(Succeed())
 			Expect(k8sClient.Delete(context.Background(), ng)).To(Succeed())
 			Eventually(func() bool {

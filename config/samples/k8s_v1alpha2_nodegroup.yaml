@@ -1,4 +1,4 @@
-apiVersion: k8s.elx.cloud/v1alpha1
+apiVersion: k8s.elx.cloud/v1alpha2
 kind: NodeGroup
 metadata:
   name: nodegroup-sample

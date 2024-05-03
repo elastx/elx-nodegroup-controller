@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,9 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	k8sv1alpha1 "github.com/elastx/elx-nodegroup-controller/api/v1alpha1"
+	k8sv1alpha2 "github.com/elastx/elx-nodegroup-controller/api/v1alpha2"
 )
 
 const (
@@ -137,9 +137,9 @@ func reconcileNodeTaints(node *corev1.Node, taints []corev1.Taint) bool {
 	return needsUpdate
 }
 
-func (r *NodeGroupReconciler) findNodeGroupsForMember(node client.Object) []reconcile.Request {
+func (r *NodeGroupReconciler) findNodeGroupsForMember(_ context.Context, node client.Object) []reconcile.Request {
 	log := log.FromContext(context.Background())
-	nodeGroups := &k8sv1alpha1.NodeGroupList{}
+	nodeGroups := &k8sv1alpha2.NodeGroupList{}
 	listOpts := &client.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector(membersField, node.GetName()),
 	}
@@ -164,7 +164,7 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	log := log.FromContext(ctx)
 
 	log.V(1).Info("reconciling node group", "nodeGroup", req.NamespacedName)
-	var nodeGroup k8sv1alpha1.NodeGroup
+	var nodeGroup k8sv1alpha2.NodeGroup
 	if err := r.Get(ctx, req.NamespacedName, &nodeGroup); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -172,6 +172,23 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		log.Error(err, "unable to fetch nodeGroup", "nodeGroup", req.NamespacedName)
 
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	matchingStrings := nodeGroup.Spec.Members
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		log.Error(err, "unable to list Nodes")
+		return ctrl.Result{}, err
+	}
+
+	for _, node := range nodes.Items {
+		nodeNameParts := strings.Split(node.Name, "-")
+		for _, part := range nodeNameParts {
+			if stringIn(part, nodeGroup.Spec.NodeGroupNames) {
+				matchingStrings = append(matchingStrings, node.Name)
+				break
+			}
+		}
 	}
 
 	node := &corev1.Node{}
@@ -187,7 +204,7 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	} else {
 		if stringIn(finalizer, nodeGroup.GetFinalizers()) {
-			for _, n := range nodeGroup.Spec.Members {
+			for _, n := range matchingStrings {
 				err := r.Get(ctx, types.NamespacedName{Name: n}, node)
 				if err != nil {
 					return ctrl.Result{}, err
@@ -214,7 +231,7 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	for _, n := range nodeGroup.Spec.Members {
+	for _, n := range matchingStrings {
 		err := r.Get(ctx, types.NamespacedName{Name: n}, node)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -238,8 +255,8 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func (r *NodeGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &k8sv1alpha1.NodeGroup{}, membersField, func(rawObj client.Object) []string {
-		nodeGroup := rawObj.(*k8sv1alpha1.NodeGroup)
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &k8sv1alpha2.NodeGroup{}, membersField, func(rawObj client.Object) []string {
+		nodeGroup := rawObj.(*k8sv1alpha2.NodeGroup)
 		if nodeGroup.Spec.Members == nil {
 			return nil
 		}
@@ -248,8 +265,8 @@ func (r *NodeGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&k8sv1alpha1.NodeGroup{}).
-		Watches(&source.Kind{Type: &corev1.Node{}},
+		For(&k8sv1alpha2.NodeGroup{}).
+		Watches(&corev1.Node{},
 			handler.EnqueueRequestsFromMapFunc(r.findNodeGroupsForMember)).
 		Complete(r)
 }
