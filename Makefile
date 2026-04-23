@@ -62,7 +62,39 @@ vet: ## Run go vet against code.
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /test/e2e) -coverprofile cover.out
+
+##@ E2E Testing
+
+KIND_CLUSTER_NAME ?= elx-nodegroup-e2e
+# E2E_IMG is the controller image to load into the kind cluster.
+# Override if you want to use a pre-built image: make test-e2e E2E_IMG=myregistry/myimage:tag
+E2E_IMG ?= elx-nodegroup-controller:e2e
+
+.PHONY: kind-create
+kind-create: ## Create a kind cluster for e2e testing (requires kind: https://kind.sigs.k8s.io)
+	kind create cluster --name $(KIND_CLUSTER_NAME) --config test/e2e/kind-config.yaml
+
+.PHONY: kind-delete
+kind-delete: ## Delete the e2e kind cluster
+	kind delete cluster --name $(KIND_CLUSTER_NAME)
+
+.PHONY: kind-load-and-deploy
+kind-load-and-deploy: docker-build ## Build the controller image, load it into the kind cluster, and deploy
+	$(CONTAINER_TOOL) tag $(IMG) $(E2E_IMG)
+	kind load docker-image $(E2E_IMG) --name $(KIND_CLUSTER_NAME)
+	$(KUSTOMIZE) build config/crd | kubectl --context kind-$(KIND_CLUSTER_NAME) apply -f -
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(E2E_IMG)
+	$(KUSTOMIZE) build config/default | kubectl --context kind-$(KIND_CLUSTER_NAME) apply -f -
+	kubectl --context kind-$(KIND_CLUSTER_NAME) -n elx-nodegroup-controller-system \
+		wait --for=condition=available deployment/controller-manager --timeout=120s
+
+.PHONY: test-e2e
+test-e2e: ## Run e2e tests against the cluster referenced by KUBECONFIG (controller must be running)
+	go test ./test/e2e/... -v -timeout 5m
+
+.PHONY: e2e-full
+e2e-full: kind-create kind-load-and-deploy test-e2e kind-delete ## Full e2e lifecycle: create cluster, deploy, test, destroy
 
 ##@ Build
 
