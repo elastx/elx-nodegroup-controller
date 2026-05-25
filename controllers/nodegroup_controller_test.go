@@ -179,7 +179,7 @@ var _ = Describe("NodeGroup controller", func() {
 					}
 				}
 				return n.GetLabels()["nodegroup2"] == "value2"
-			})
+			}, timeout, interval).Should(BeTrue())
 			ng := &v1alpha2.NodeGroup{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "nodegroup2"}, ng)).To(Succeed())
 			Expect(k8sClient.Delete(context.Background(), ng)).To(Succeed())
@@ -197,7 +197,7 @@ var _ = Describe("NodeGroup controller", func() {
 					return false
 				}
 				return true
-			})
+			}, timeout, interval).Should(BeTrue())
 		})
 		It("should maintain labels and taints on nodes", func() {
 			node := &corev1.Node{}
