@@ -24,9 +24,9 @@ import (
 type NodeGroupSpec struct {
 	Members []string `json:"members,omitempty"`
 	//+optional
-	Labels map[string]string `json:"labels,omitEmpty"`
+	Labels map[string]string `json:"labels,omitempty"`
 	//+optional
-	Taints []corev1.Taint `json:"taints,omitEmpty"`
+	Taints []corev1.Taint `json:"taints,omitempty"`
 }
 
 type NodeGroupStatus struct {
@@ -35,6 +35,7 @@ type NodeGroupStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
+//+kubebuilder:deprecatedversion:warning="v1alpha1 is deprecated and will no longer be served in a future release; please migrate to v1alpha2"
 
 // NodeGroup is the Schema for the nodegroups API
 type NodeGroup struct {

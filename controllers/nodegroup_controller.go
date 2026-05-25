@@ -138,23 +138,46 @@ func reconcileNodeTaints(ctx context.Context, node *corev1.Node, taints []corev1
 
 func (r *NodeGroupReconciler) findNodeGroupsForMember(ctx context.Context, node client.Object) []reconcile.Request {
 	log := log.FromContext(ctx)
-	nodeGroups := &k8sv1alpha2.NodeGroupList{}
+
+	// NodeGroups with the node listed explicitly in spec.members
+	byMember := &k8sv1alpha2.NodeGroupList{}
 	listOpts := &client.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector(membersField, node.GetName()),
 	}
-	if err := r.List(ctx, nodeGroups, listOpts); err != nil {
+	if err := r.List(ctx, byMember, listOpts); err != nil {
 		return []reconcile.Request{}
 	}
 
-	requests := make([]reconcile.Request, len(nodeGroups.Items))
-	for i, item := range nodeGroups.Items {
-		requests[i] = reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Name: item.GetName(),
-			},
+	seen := make(map[string]struct{}, len(byMember.Items))
+	requests := make([]reconcile.Request, 0, len(byMember.Items))
+	for _, item := range byMember.Items {
+		seen[item.Name] = struct{}{}
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{Name: item.GetName()},
+		})
+	}
+
+	// NodeGroups that match the node via nodeGroupNames segment matching
+	allNodeGroups := &k8sv1alpha2.NodeGroupList{}
+	if err := r.List(ctx, allNodeGroups); err != nil {
+		return requests
+	}
+	nodeNameParts := strings.Split(node.GetName(), "-")
+	for _, item := range allNodeGroups.Items {
+		if _, already := seen[item.Name]; already {
+			continue
+		}
+		for _, part := range nodeNameParts {
+			if stringIn(part, item.Spec.NodeGroupNames) {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: item.GetName()},
+				})
+				break
+			}
 		}
 	}
-	log.V(1).Info("reconcile requests returned", "requests", requests)
+
+	log.V(1).Info("reconcile requests returned", "node", node.GetName(), "requests", len(requests))
 	return requests
 }
 
