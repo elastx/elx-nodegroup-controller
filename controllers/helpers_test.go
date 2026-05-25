@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -115,11 +116,11 @@ func TestFinalizeNodeLabels(t *testing.T) {
 			expectedLabels: map[string]string{"other": "kept"},
 		},
 		{
-			name:           "does not remove label when value has been changed since NodeGroup applied it",
+			name:           "removes label by key even when value has been changed since NodeGroup applied it",
 			nodeLabels:     map[string]string{"managed": "modified"},
 			specLabels:     map[string]string{"managed": "yes"},
-			expectedUpdate: false,
-			expectedLabels: map[string]string{"managed": "modified"},
+			expectedUpdate: true,
+			expectedLabels: map[string]string{},
 		},
 		{
 			name:           "does not remove label that is absent from node",
@@ -235,7 +236,7 @@ func TestReconcileNodeLabels(t *testing.T) {
 			node := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "test-node", Labels: tt.nodeLabels},
 			}
-			got := reconcileNodeLabels(node, tt.specLabels)
+			got := reconcileNodeLabels(context.Background(), node, tt.specLabels)
 			if got != tt.expectedUpdate {
 				t.Errorf("reconcileNodeLabels() needsUpdate = %v, want %v", got, tt.expectedUpdate)
 			}
@@ -379,7 +380,7 @@ func TestReconcileNodeTaints(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "test-node"},
 				Spec:       corev1.NodeSpec{Taints: append([]corev1.Taint{}, tt.nodeTaints...)},
 			}
-			got := reconcileNodeTaints(node, tt.specTaints)
+			got := reconcileNodeTaints(context.Background(), node, tt.specTaints)
 			if got != tt.expectedUpdate {
 				t.Errorf("reconcileNodeTaints() needsUpdate = %v, want %v", got, tt.expectedUpdate)
 			}

@@ -158,7 +158,7 @@ func TestFindNodeGroupsForMember_ListError(t *testing.T) {
 
 // TestReconcile_FinalizationNodeLabelUpdateError covers the error path when
 // updating a node to remove a managed label during finalization fails.
-// The controller logs the error but still returns Requeue so it retries.
+// The controller returns the error so controller-runtime applies rate-limited requeue.
 func TestReconcile_FinalizationNodeLabelUpdateError(t *testing.T) {
 	s := reconcilerScheme(t)
 
@@ -195,12 +195,11 @@ func TestReconcile_FinalizationNodeLabelUpdateError(t *testing.T) {
 		}).Build()
 
 	r := &NodeGroupReconciler{Client: fc, Scheme: s}
-	result, err := r.Reconcile(context.Background(), ctrl.Request{
+	_, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: ng.Name},
 	})
-	// Even when the node update fails, the controller requeues to retry.
-	if err != nil || !result.Requeue {
-		t.Errorf("expected Requeue=true, err=nil; got Requeue=%v, err=%v", result.Requeue, err)
+	if !errors.Is(err, injected) {
+		t.Errorf("expected injected error, got %v", err)
 	}
 }
 
@@ -247,11 +246,11 @@ func TestReconcile_FinalizationNodeTaintUpdateError(t *testing.T) {
 		}).Build()
 
 	r := &NodeGroupReconciler{Client: fc, Scheme: s}
-	result, err := r.Reconcile(context.Background(), ctrl.Request{
+	_, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: ng.Name},
 	})
-	if err != nil || !result.Requeue {
-		t.Errorf("expected Requeue=true, err=nil; got Requeue=%v, err=%v", result.Requeue, err)
+	if !errors.Is(err, injected) {
+		t.Errorf("expected injected error, got %v", err)
 	}
 }
 
