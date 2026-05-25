@@ -34,12 +34,17 @@ spec:
               - matchExpressions:
                   - key: node-role.kubernetes.io/control-plane
                     operator: DoesNotExist
-      # Ignore all NoSchedule taints
+      # Ignore all NoSchedule and NoExecute taints so the controller
+      # is never evicted by taints it manages.
       tolerations:
         - effect: NoSchedule
           operator: Exists
+        - effect: NoExecute
+          operator: Exists
       securityContext:
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - command:
             - /manager
@@ -49,6 +54,12 @@ spec:
           name: manager
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           livenessProbe:
             httpGet:
               path: /healthz
