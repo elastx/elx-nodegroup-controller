@@ -47,6 +47,9 @@ help: ## Display this help.
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	@# v1alpha1 is hard-retired; controller-gen always regenerates it as served=true so patch it back
+	awk '/^  - name: v1alpha1$$/{f=1} /^  - name: v1alpha2$$/{f=0} f && /^    served: true/{sub(/served: true/,"served: false")} {print}' \
+	  config/crd/bases/k8s.elx.cloud_nodegroups.yaml > /tmp/_crd_patch && mv /tmp/_crd_patch config/crd/bases/k8s.elx.cloud_nodegroups.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -172,7 +175,7 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.1.1
-CONTROLLER_TOOLS_VERSION ?= v0.14.0
+CONTROLLER_TOOLS_VERSION ?= v0.21.0
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary. If wrong version is installed, it will be removed before downloading.
