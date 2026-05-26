@@ -14,10 +14,7 @@ spec:
     singular: nodegroup
   scope: Cluster
   versions:
-  - deprecated: true
-    deprecationWarning: v1alpha1 is deprecated and will no longer be served in a future
-      release; please migrate to v1alpha2
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: NodeGroup is the Schema for the nodegroups API
@@ -117,9 +114,9 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - message: label keys must not use reserved kubernetes.io/, k8s.io/,
-                    or node.kubernetes.io/ prefixes
+                    node.kubernetes.io/, or node-role.kubernetes.io/ prefixes
                   rule: self.all(k, !k.startsWith('kubernetes.io/') && !k.startsWith('k8s.io/')
-                    && !k.startsWith('node.kubernetes.io/'))
+                    && !k.startsWith('node.kubernetes.io/') && !k.startsWith('node-role.kubernetes.io/'))
               members:
                 items:
                   type: string

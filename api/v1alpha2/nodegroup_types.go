@@ -30,7 +30,7 @@ type NodeGroupSpec struct {
 	NodeGroupNames []string `json:"nodeGroupNames,omitempty"`
 	//+optional
 	//+kubebuilder:validation:MaxProperties=64
-	//+kubebuilder:validation:XValidation:rule="self.all(k, !k.startsWith('kubernetes.io/') && !k.startsWith('k8s.io/') && !k.startsWith('node.kubernetes.io/'))",message="label keys must not use reserved kubernetes.io/, k8s.io/, or node.kubernetes.io/ prefixes"
+	//+kubebuilder:validation:XValidation:rule="self.all(k, !k.startsWith('kubernetes.io/') && !k.startsWith('k8s.io/') && !k.startsWith('node.kubernetes.io/') && !k.startsWith('node-role.kubernetes.io/'))",message="label keys must not use reserved kubernetes.io/, k8s.io/, node.kubernetes.io/, or node-role.kubernetes.io/ prefixes"
 	Labels map[string]string `json:"labels,omitempty"`
 	//+optional
 	//+kubebuilder:validation:MaxItems=100

@@ -35,7 +35,6 @@ type NodeGroupStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
-//+kubebuilder:deprecatedversion:warning="v1alpha1 is deprecated and will no longer be served in a future release; please migrate to v1alpha2"
 
 // NodeGroup is the Schema for the nodegroups API
 type NodeGroup struct {
