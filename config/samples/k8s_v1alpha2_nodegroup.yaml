@@ -3,4 +3,14 @@ kind: NodeGroup
 metadata:
   name: nodegroup-sample
 spec:
-  # TODO(user): Add fields here
+  nodeGroupNames: ["default"]
+  labels:
+    environment: production
+  taints:
+    - key: dedicated
+      value: "special"
+      effect: NoSchedule
+  startupTaints:
+    - key: node.istio.io/ambient-not-ready
+      value: "true"
+      effect: NoSchedule
