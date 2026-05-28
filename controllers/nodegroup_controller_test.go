@@ -279,15 +279,20 @@ var _ = Describe("NodeGroup controller", func() {
 				if err != nil {
 					return false
 				}
+				hasTaint := false
 				for _, t := range node.Spec.Taints {
 					if t.MatchTaint(startupTaint) {
-						return true
+						hasTaint = true
+						break
 					}
 				}
-				return false
+				if !hasTaint {
+					return false
+				}
+				annotations := node.GetAnnotations()
+				_, hasAnnotation := annotations["k8s.elx.cloud/startup-taints-applied"]
+				return hasAnnotation
 			}, timeout, interval).Should(BeTrue())
-			annotations := node.GetAnnotations()
-			Expect(annotations).To(HaveKey("k8s.elx.cloud/startup-taints-applied"))
 		})
 		It("should NOT reapply startup taints after removal", func() {
 			node := &corev1.Node{}
@@ -316,6 +321,7 @@ var _ = Describe("NodeGroup controller", func() {
 			Expect(k8sClient.Update(context.Background(), node)).To(Succeed())
 
 			// Give the controller time to reconcile — taint should stay removed
+			// and the annotation should still be present (proving the mechanism works)
 			Consistently(func() bool {
 				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node3"}, node)
 				if err != nil {
@@ -326,7 +332,12 @@ var _ = Describe("NodeGroup controller", func() {
 						return false
 					}
 				}
-				return true
+				annotations := node.GetAnnotations()
+				if annotations == nil {
+					return false
+				}
+				_, hasAnnotation := annotations["k8s.elx.cloud/startup-taints-applied"]
+				return hasAnnotation
 			}, duration, interval).Should(BeTrue())
 		})
 		It("should reapply startup taints when a node is recreated", func() {
@@ -347,7 +358,14 @@ var _ = Describe("NodeGroup controller", func() {
 
 			// Delete and recreate node (simulates node replacement)
 			Expect(k8sClient.Delete(context.Background(), node)).To(Succeed())
-			Expect(k8sClient.Create(context.Background(), &nodes[2])).To(Succeed())
+			freshNode := corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "node3",
+					Labels: map[string]string{},
+				},
+				Spec: corev1.NodeSpec{},
+			}
+			Expect(k8sClient.Create(context.Background(), &freshNode)).To(Succeed())
 
 			// Startup taint should be applied to the new node
 			Eventually(func() bool {
