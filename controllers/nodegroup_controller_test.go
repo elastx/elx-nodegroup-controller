@@ -50,6 +50,11 @@ var _ = Describe("NodeGroup controller", func() {
 			Value:  "tainted",
 			Effect: "NoSchedule",
 		}
+		startupTaint = &corev1.Taint{
+			Key:    "node.istio.io/ambient-not-ready",
+			Value:  "true",
+			Effect: "NoSchedule",
+		}
 		nodeGroups = []v1alpha2.NodeGroup{
 			{
 				ObjectMeta: metav1.ObjectMeta{
@@ -72,6 +77,15 @@ var _ = Describe("NodeGroup controller", func() {
 						"nodegroup2": "value2",
 					},
 					Taints: []corev1.Taint{*taint},
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nodegroup3",
+				},
+				Spec: v1alpha2.NodeGroupSpec{
+					Members:       []string{"node3"},
+					StartupTaints: []corev1.Taint{*startupTaint},
 				},
 			},
 		}
@@ -256,6 +270,156 @@ var _ = Describe("NodeGroup controller", func() {
 					}
 				}
 				return false
+			}, timeout, interval).Should(BeTrue())
+		})
+		It("should apply startup taints to member nodes", func() {
+			node := &corev1.Node{}
+			Eventually(func() bool {
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node3"}, node)
+				if err != nil {
+					return false
+				}
+				hasTaint := false
+				for _, t := range node.Spec.Taints {
+					if t.MatchTaint(startupTaint) {
+						hasTaint = true
+						break
+					}
+				}
+				if !hasTaint {
+					return false
+				}
+				annotations := node.GetAnnotations()
+				_, hasAnnotation := annotations["k8s.elx.cloud/startup-taints-applied"]
+				return hasAnnotation
+			}, timeout, interval).Should(BeTrue())
+		})
+		It("should NOT reapply startup taints after removal", func() {
+			node := &corev1.Node{}
+			Eventually(func() bool {
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node3"}, node)
+				if err != nil {
+					return false
+				}
+				for _, t := range node.Spec.Taints {
+					if t.MatchTaint(startupTaint) {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+
+			// Simulate ztunnel removing the taint
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "node3"}, node)).To(Succeed())
+			newTaints := []corev1.Taint{}
+			for _, t := range node.Spec.Taints {
+				if !t.MatchTaint(startupTaint) {
+					newTaints = append(newTaints, t)
+				}
+			}
+			node.Spec.Taints = newTaints
+			Expect(k8sClient.Update(context.Background(), node)).To(Succeed())
+
+			// Give the controller time to reconcile — taint should stay removed
+			// and the annotation should still be present (proving the mechanism works)
+			Consistently(func() bool {
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node3"}, node)
+				if err != nil {
+					return false
+				}
+				for _, t := range node.Spec.Taints {
+					if t.MatchTaint(startupTaint) {
+						return false
+					}
+				}
+				annotations := node.GetAnnotations()
+				if annotations == nil {
+					return false
+				}
+				_, hasAnnotation := annotations["k8s.elx.cloud/startup-taints-applied"]
+				return hasAnnotation
+			}, duration, interval).Should(BeTrue())
+		})
+		It("should reapply startup taints when a node is recreated", func() {
+			node := &corev1.Node{}
+			// Wait for initial application
+			Eventually(func() bool {
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node3"}, node)
+				if err != nil {
+					return false
+				}
+				for _, t := range node.Spec.Taints {
+					if t.MatchTaint(startupTaint) {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+
+			// Delete and recreate node (simulates node replacement)
+			Expect(k8sClient.Delete(context.Background(), node)).To(Succeed())
+			freshNode := corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "node3",
+					Labels: map[string]string{},
+				},
+				Spec: corev1.NodeSpec{},
+			}
+			Expect(k8sClient.Create(context.Background(), &freshNode)).To(Succeed())
+
+			// Startup taint should be applied to the new node
+			Eventually(func() bool {
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node3"}, node)
+				if err != nil {
+					return false
+				}
+				for _, t := range node.Spec.Taints {
+					if t.MatchTaint(startupTaint) {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+		})
+		It("should clean up startup taints and annotations during finalization", func() {
+			node := &corev1.Node{}
+			// Wait for startup taint to be applied
+			Eventually(func() bool {
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node3"}, node)
+				if err != nil {
+					return false
+				}
+				for _, t := range node.Spec.Taints {
+					if t.MatchTaint(startupTaint) {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+
+			// Delete the NodeGroup
+			ng := &v1alpha2.NodeGroup{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "nodegroup3"}, ng)).To(Succeed())
+			Expect(k8sClient.Delete(context.Background(), ng)).To(Succeed())
+
+			// Taint and annotation should be removed
+			Eventually(func() bool {
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "node3"}, node)
+				if err != nil {
+					return false
+				}
+				for _, t := range node.Spec.Taints {
+					if t.MatchTaint(startupTaint) {
+						return false
+					}
+				}
+				annotations := node.GetAnnotations()
+				if annotations != nil {
+					if val, ok := annotations["k8s.elx.cloud/startup-taints-applied"]; ok && val != "" {
+						return false
+					}
+				}
+				return true
 			}, timeout, interval).Should(BeTrue())
 		})
 	})

@@ -30,6 +30,10 @@ type NodeGroupSpec struct {
 	Labels map[string]string `json:"labels,omitEmpty"`
 	//+optional
 	Taints []corev1.Taint `json:"taints,omitEmpty"`
+	// StartupTaints are applied once when a node first matches this NodeGroup.
+	// Unlike Taints, they are NOT reapplied if removed by another controller (e.g. ztunnel).
+	//+optional
+	StartupTaints []corev1.Taint `json:"startupTaints,omitEmpty"`
 }
 
 type NodeGroupStatus struct {

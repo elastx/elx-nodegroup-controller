@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -36,8 +37,9 @@ import (
 )
 
 const (
-	membersField = ".spec.members"
-	finalizer    = "k8s.elx.cloud/finalizer"
+	membersField           = ".spec.members"
+	finalizer              = "k8s.elx.cloud/finalizer"
+	startupTaintAnnotation = "k8s.elx.cloud/startup-taints-applied"
 )
 
 type NodeGroupReconciler struct {
@@ -132,6 +134,89 @@ func reconcileNodeTaints(ctx context.Context, node *corev1.Node, taints []corev1
 			node.Spec.Taints = append(node.Spec.Taints, t)
 			needsUpdate = true
 		}
+	}
+	return needsUpdate
+}
+
+func startupTaintKey(ngName string, taint corev1.Taint) string {
+	return ngName + "/" + taint.Key + ":" + string(taint.Effect)
+}
+
+func getAppliedStartupTaints(node *corev1.Node) map[string]struct{} {
+	result := make(map[string]struct{})
+	annotations := node.GetAnnotations()
+	if annotations == nil {
+		return result
+	}
+	val, ok := annotations[startupTaintAnnotation]
+	if !ok || val == "" {
+		return result
+	}
+	for _, entry := range strings.Split(val, ",") {
+		result[entry] = struct{}{}
+	}
+	return result
+}
+
+func setAppliedStartupTaints(node *corev1.Node, applied map[string]struct{}) {
+	annotations := node.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	if len(applied) == 0 {
+		delete(annotations, startupTaintAnnotation)
+	} else {
+		keys := make([]string, 0, len(applied))
+		for k := range applied {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		annotations[startupTaintAnnotation] = strings.Join(keys, ",")
+	}
+	node.SetAnnotations(annotations)
+}
+
+func reconcileStartupTaints(ctx context.Context, node *corev1.Node, ngName string, taints []corev1.Taint) bool {
+	log := log.FromContext(ctx)
+	needsUpdate := false
+	applied := getAppliedStartupTaints(node)
+	for _, t := range taints {
+		key := startupTaintKey(ngName, t)
+		if _, alreadyApplied := applied[key]; alreadyApplied {
+			continue
+		}
+		if !hasTaint(&t, node) {
+			log.V(1).Info("adding startup taint", "node", node.Name, "taint", t)
+			node.Spec.Taints = append(node.Spec.Taints, t)
+		}
+		applied[key] = struct{}{}
+		needsUpdate = true
+	}
+	if needsUpdate {
+		setAppliedStartupTaints(node, applied)
+	}
+	return needsUpdate
+}
+
+func finalizeStartupTaints(node *corev1.Node, ngName string, taints []corev1.Taint) bool {
+	needsUpdate := false
+	for _, t := range taints {
+		if pos := taintPos(&t, node.Spec.Taints); pos > -1 {
+			node.Spec.Taints[pos] = node.Spec.Taints[len(node.Spec.Taints)-1]
+			node.Spec.Taints = node.Spec.Taints[:len(node.Spec.Taints)-1]
+			needsUpdate = true
+		}
+	}
+	applied := getAppliedStartupTaints(node)
+	for _, t := range taints {
+		key := startupTaintKey(ngName, t)
+		if _, ok := applied[key]; ok {
+			delete(applied, key)
+			needsUpdate = true
+		}
+	}
+	if needsUpdate {
+		setAppliedStartupTaints(node, applied)
 	}
 	return needsUpdate
 }
@@ -232,6 +317,13 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 					}
 					return ctrl.Result{Requeue: true}, nil
 				}
+				if needsUpdate := finalizeStartupTaints(node, nodeGroup.Name, nodeGroup.Spec.StartupTaints); needsUpdate {
+					if err := r.Update(ctx, node); err != nil {
+						log.Error(err, "unable to update Node", "node", n)
+						return ctrl.Result{}, err
+					}
+					return ctrl.Result{Requeue: true}, nil
+				}
 			}
 			controllerutil.RemoveFinalizer(&nodeGroup, finalizer)
 			if err := r.Update(ctx, &nodeGroup); err != nil {
@@ -259,6 +351,13 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{Requeue: true}, nil
 		}
 		if needsUpdate := reconcileNodeTaints(ctx, node, nodeGroup.Spec.Taints); needsUpdate {
+			if err := r.Update(ctx, node); err != nil {
+				log.Error(err, "unable to update Node", "node", n)
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil
+		}
+		if needsUpdate := reconcileStartupTaints(ctx, node, nodeGroup.Name, nodeGroup.Spec.StartupTaints); needsUpdate {
 			if err := r.Update(ctx, node); err != nil {
 				log.Error(err, "unable to update Node", "node", n)
 				return ctrl.Result{}, err
