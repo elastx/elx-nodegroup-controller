@@ -75,9 +75,8 @@ func hasTaint(taint *corev1.Taint, node *corev1.Node) bool {
 func finalizeNodeLabels(node *corev1.Node, labels map[string]string) bool {
 	needsUpdate := false
 	currentLabels := node.GetLabels()
-	for l, v := range labels {
-		cv, ok := currentLabels[l]
-		if ok && cv == v {
+	for l := range labels {
+		if _, ok := currentLabels[l]; ok {
 			delete(node.Labels, l)
 			needsUpdate = true
 		}
@@ -85,8 +84,8 @@ func finalizeNodeLabels(node *corev1.Node, labels map[string]string) bool {
 	return needsUpdate
 }
 
-func reconcileNodeLabels(node *corev1.Node, labels map[string]string) bool {
-	log := log.FromContext(context.Background())
+func reconcileNodeLabels(ctx context.Context, node *corev1.Node, labels map[string]string) bool {
+	log := log.FromContext(ctx)
 	needsUpdate := false
 	currentLabels := node.GetLabels()
 	for l, v := range labels {
@@ -124,8 +123,8 @@ func finalizeNodeTaints(node *corev1.Node, taints []corev1.Taint) bool {
 	return needsUpdate
 }
 
-func reconcileNodeTaints(node *corev1.Node, taints []corev1.Taint) bool {
-	log := log.FromContext(context.Background())
+func reconcileNodeTaints(ctx context.Context, node *corev1.Node, taints []corev1.Taint) bool {
+	log := log.FromContext(ctx)
 	needsUpdate := false
 	for _, t := range taints {
 		if !hasTaint(&t, node) {
@@ -137,14 +136,13 @@ func reconcileNodeTaints(node *corev1.Node, taints []corev1.Taint) bool {
 	return needsUpdate
 }
 
-func (r *NodeGroupReconciler) findNodeGroupsForMember(_ context.Context, node client.Object) []reconcile.Request {
-	log := log.FromContext(context.Background())
+func (r *NodeGroupReconciler) findNodeGroupsForMember(ctx context.Context, node client.Object) []reconcile.Request {
+	log := log.FromContext(ctx)
 	nodeGroups := &k8sv1alpha2.NodeGroupList{}
 	listOpts := &client.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector(membersField, node.GetName()),
 	}
-	err := r.List(context.Background(), nodeGroups, listOpts)
-	if err != nil {
+	if err := r.List(ctx, nodeGroups, listOpts); err != nil {
 		return []reconcile.Request{}
 	}
 
@@ -156,7 +154,7 @@ func (r *NodeGroupReconciler) findNodeGroupsForMember(_ context.Context, node cl
 			},
 		}
 	}
-	log.Info("reconcile requests returned", "requests", requests)
+	log.V(1).Info("reconcile requests returned", "requests", requests)
 	return requests
 }
 
@@ -174,7 +172,12 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	matchingStrings := nodeGroup.Spec.Members
+	seen := make(map[string]struct{}, len(nodeGroup.Spec.Members))
+	for _, m := range nodeGroup.Spec.Members {
+		seen[m] = struct{}{}
+	}
+	matchingStrings := append([]string{}, nodeGroup.Spec.Members...)
+
 	nodes := &corev1.NodeList{}
 	if err := r.List(ctx, nodes); err != nil {
 		log.Error(err, "unable to list Nodes")
@@ -185,7 +188,10 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		nodeNameParts := strings.Split(node.Name, "-")
 		for _, part := range nodeNameParts {
 			if stringIn(part, nodeGroup.Spec.NodeGroupNames) {
-				matchingStrings = append(matchingStrings, node.Name)
+				if _, exists := seen[node.Name]; !exists {
+					seen[node.Name] = struct{}{}
+					matchingStrings = append(matchingStrings, node.Name)
+				}
 				break
 			}
 		}
@@ -206,18 +212,23 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if stringIn(finalizer, nodeGroup.GetFinalizers()) {
 			for _, n := range matchingStrings {
 				err := r.Get(ctx, types.NamespacedName{Name: n}, node)
+				if apierrors.IsNotFound(err) {
+					continue
+				}
 				if err != nil {
 					return ctrl.Result{}, err
 				}
 				if needsUpdate := finalizeNodeLabels(node, nodeGroup.Spec.Labels); needsUpdate {
 					if err := r.Update(ctx, node); err != nil {
 						log.Error(err, "unable to update Node", "node", n)
+						return ctrl.Result{}, err
 					}
 					return ctrl.Result{Requeue: true}, nil
 				}
 				if needsUpdate := finalizeNodeTaints(node, nodeGroup.Spec.Taints); needsUpdate {
 					if err := r.Update(ctx, node); err != nil {
 						log.Error(err, "unable to update Node", "node", n)
+						return ctrl.Result{}, err
 					}
 					return ctrl.Result{Requeue: true}, nil
 				}
@@ -233,19 +244,24 @@ func (r *NodeGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	for _, n := range matchingStrings {
 		err := r.Get(ctx, types.NamespacedName{Name: n}, node)
+		if apierrors.IsNotFound(err) {
+			continue
+		}
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		log.V(1).Info("reconciling node", "node", n)
-		if needsUpdate := reconcileNodeLabels(node, nodeGroup.Spec.Labels); needsUpdate {
+		if needsUpdate := reconcileNodeLabels(ctx, node, nodeGroup.Spec.Labels); needsUpdate {
 			if err := r.Update(ctx, node); err != nil {
 				log.Error(err, "unable to update Node", "node", n)
+				return ctrl.Result{}, err
 			}
 			return ctrl.Result{Requeue: true}, nil
 		}
-		if needsUpdate := reconcileNodeTaints(node, nodeGroup.Spec.Taints); needsUpdate {
+		if needsUpdate := reconcileNodeTaints(ctx, node, nodeGroup.Spec.Taints); needsUpdate {
 			if err := r.Update(ctx, node); err != nil {
 				log.Error(err, "unable to update Node", "node", n)
+				return ctrl.Result{}, err
 			}
 			return ctrl.Result{Requeue: true}, nil
 		}
