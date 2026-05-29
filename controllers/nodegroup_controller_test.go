@@ -115,8 +115,10 @@ var _ = Describe("NodeGroup controller", func() {
 		It("should add a finalizer to NodeGroups", func() {
 			ng := &v1alpha2.NodeGroup{}
 			for _, nodeGroup := range nodeGroups {
-				Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: nodeGroup.Name}, ng)).Should(Succeed())
-				Expect(ng.Finalizers).Should(HaveLen(1))
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: nodeGroup.Name}, ng)).Should(Succeed())
+					g.Expect(ng.Finalizers).Should(HaveLen(1))
+				}, timeout, interval).Should(Succeed())
 			}
 		})
 
