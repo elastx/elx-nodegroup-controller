@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: nodegroups.k8s.elx.cloud
 spec:
   group: k8s.elx.cloud
@@ -79,7 +79,7 @@ spec:
           status:
             type: object
         type: object
-    served: true
+    served: false
     storage: false
     subresources:
       status: {}
@@ -110,14 +110,22 @@ spec:
               labels:
                 additionalProperties:
                   type: string
+                maxProperties: 64
                 type: object
+                x-kubernetes-validations:
+                - message: label keys must not use reserved kubernetes.io/, k8s.io/,
+                    node.kubernetes.io/, or node-role.kubernetes.io/ prefixes
+                  rule: self.all(k, !k.startsWith('kubernetes.io/') && !k.startsWith('k8s.io/')
+                    && !k.startsWith('node.kubernetes.io/') && !k.startsWith('node-role.kubernetes.io/'))
               members:
                 items:
                   type: string
+                maxItems: 500
                 type: array
               nodeGroupNames:
                 items:
                   type: string
+                maxItems: 50
                 type: array
               taints:
                 items:
@@ -147,7 +155,13 @@ spec:
                   - effect
                   - key
                   type: object
+                maxItems: 100
                 type: array
+                x-kubernetes-validations:
+                - message: 'taint effect must be one of: NoSchedule, PreferNoSchedule,
+                    NoExecute'
+                  rule: self.all(t, t.effect in ['NoSchedule', 'PreferNoSchedule',
+                    'NoExecute'])
             type: object
           status:
             type: object

@@ -24,9 +24,9 @@ import (
 type NodeGroupSpec struct {
 	Members []string `json:"members,omitempty"`
 	//+optional
-	Labels map[string]string `json:"labels,omitEmpty"`
+	Labels map[string]string `json:"labels,omitempty"`
 	//+optional
-	Taints []corev1.Taint `json:"taints,omitEmpty"`
+	Taints []corev1.Taint `json:"taints,omitempty"`
 }
 
 type NodeGroupStatus struct {

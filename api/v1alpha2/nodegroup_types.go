@@ -23,13 +23,19 @@ import (
 
 type NodeGroupSpec struct {
 	//+optional
-	Members []string `json:"members"`
+	//+kubebuilder:validation:MaxItems=500
+	Members []string `json:"members,omitempty"`
 	//+optional
-	NodeGroupNames []string `json:"nodeGroupNames"`
+	//+kubebuilder:validation:MaxItems=50
+	NodeGroupNames []string `json:"nodeGroupNames,omitempty"`
 	//+optional
-	Labels map[string]string `json:"labels,omitEmpty"`
+	//+kubebuilder:validation:MaxProperties=64
+	//+kubebuilder:validation:XValidation:rule="self.all(k, !k.startsWith('kubernetes.io/') && !k.startsWith('k8s.io/') && !k.startsWith('node.kubernetes.io/') && !k.startsWith('node-role.kubernetes.io/'))",message="label keys must not use reserved kubernetes.io/, k8s.io/, node.kubernetes.io/, or node-role.kubernetes.io/ prefixes"
+	Labels map[string]string `json:"labels,omitempty"`
 	//+optional
-	Taints []corev1.Taint `json:"taints,omitEmpty"`
+	//+kubebuilder:validation:MaxItems=100
+	//+kubebuilder:validation:XValidation:rule="self.all(t, t.effect in ['NoSchedule', 'PreferNoSchedule', 'NoExecute'])",message="taint effect must be one of: NoSchedule, PreferNoSchedule, NoExecute"
+	Taints []corev1.Taint `json:"taints,omitempty"`
 }
 
 type NodeGroupStatus struct {
